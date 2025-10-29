@@ -47,20 +47,8 @@ userSchema.set("toObject", {
 });
 
 // Hash password before saving
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next(); // Only hash if modified
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
-
-// Compare entered password with hashed password
-userSchema.methods.comparePassword = async function (enteredPassword) {
-  const isPasswordValidate = await bcrypt.compare(enteredPassword, this.password);
-
-  if(!isPasswordValidate) {
-    throw {reason: "Invalid password, please try again later", statusCode: 401};
-  }
+userSchema.methods.comparePassword = async function(candidatePassword) {
+    return await bcrypt.compare(candidatePassword, this.password); 
 };
 
 

@@ -23,7 +23,7 @@ class UserController {
             console.log(error)
             res.status(error.statusCode || 500).json({
                 success: false,
-                message: "Error creating user",
+                message: error.reason || error.message,
                 data: {},
             })
         }
@@ -51,7 +51,7 @@ class UserController {
         } catch (error) {
             res.status(error.statusCode || 500).json({
                 success: false,
-                message: error.message,
+                message: error.reason || error.message,
                 data: {},
                 error: error
             })
@@ -86,7 +86,7 @@ class UserController {
             success: true,
             message: "User found successfully",
             data: {
-                id: _id,          // 🔑 include id
+                id: _id,      
                 fullName,
                 email,
                 role

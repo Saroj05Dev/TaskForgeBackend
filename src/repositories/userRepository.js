@@ -1,9 +1,15 @@
 import User from "../schemas/userSchema.js";
 
 class UserRepository {
-    async findUser (parameters) {
+    async findUser (parameters, includePassword = false) { 
         try {
-            const existingUser = await User.findOne({ ...parameters });
+            let query = User.findOne({ ...parameters });
+            
+            if(includePassword) { 
+                query = query.select('+password'); 
+            }
+            
+            const existingUser = await query;
             return existingUser;
         } catch (error) {
             throw new Error("Error finding user", error);

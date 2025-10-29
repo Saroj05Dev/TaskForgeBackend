@@ -1,61 +1,79 @@
 import jwt from "jsonwebtoken";
-import serverConfig from "../config/serverConfig.js"
+import serverConfig from "../config/serverConfig.js";
 class UserService {
-    constructor(userRepository) {
-        this.userRepository = userRepository;
+  constructor(userRepository) {
+    this.userRepository = userRepository;
+  }
+
+  async registerUser(user) {
+    const existingUser = await this.userRepository.findUser({
+      email: user.email,
+    });
+
+    if (existingUser) {
+      throw { reason: "User with this email already exists", statusCode: 400 };
     }
 
-    async registerUser (user) {
-        const existingUser = await this.userRepository.findUser({
-            email: user.email
-        });
+    const newUser = await this.userRepository.createUser(user);
 
-        if(existingUser) {
-            throw {reason: "User with this email already exists", statusCode: 400};
-        }
-
-        const newUser = await this.userRepository.createUser(user);
-
-        if(!newUser) {
-            throw {reason: "Error creating user", statusCode: 500};
-        }
-
-        return newUser;
+    if (!newUser) {
+      throw { reason: "Error creating user", statusCode: 500 };
     }
 
-    async loginUser (authDetails) {
-        // Check if there's any registered user with this given email
+    return newUser;
+  }
 
-        const existingUser = await this.userRepository.findUser({
-            email: authDetails.email
-        });
 
-        if(!existingUser) {
-            throw {reason: "User with this email does not exist", statusCode: 404};
-        }
+  async loginUser(authDetails) {
 
-        // Create a token and return it
-        const token = jwt.sign({ id: existingUser._id, email: existingUser.email}, serverConfig.JWT_SECRET, { expiresIn: serverConfig.JWT_EXPIRES_IN });
-
-        return { token, userData: {
-            fullName: existingUser.fullName,
-            email: existingUser.email,
-            id: existingUser._id
-        }}
+    if (!authDetails.email || !authDetails.password) {
+        throw {reason: "Email and password are required", statusCode: 400};
     }
 
-    async countUsers () {
-        return await this.userRepository.countAllUsers();
+    const existingUser = await this.userRepository.findUser(
+      { email: authDetails.email },
+      true 
+    );
+
+    if (!existingUser) {
+      throw { reason: "Incorrect email or password", statusCode: 401 };
     }
 
-    async getAllUsers() {
-        return await this.userRepository.getAllUsers();
-    }
+    const isPasswordCorrect = await existingUser.comparePassword(
+      authDetails.password
+    );
 
-
-    async findUserById (userId) {
-        return await this.userRepository.findUser({ _id: userId });
+    if (!isPasswordCorrect) {
+      throw { reason: "Incorrect email or password", statusCode: 401 };
     }
+    
+    const token = jwt.sign(
+      { id: existingUser._id, email: existingUser.email },
+      serverConfig.JWT_SECRET,
+      { expiresIn: serverConfig.JWT_EXPIRES_IN }
+    );
+
+    return {
+      token,
+      userData: {
+        fullName: existingUser.fullName,
+        email: existingUser.email,
+        id: existingUser._id,
+      },
+    };
+  }
+
+  async countUsers() {
+    return await this.userRepository.countAllUsers();
+  }
+
+  async getAllUsers() {
+    return await this.userRepository.getAllUsers();
+  }
+
+  async findUserById(userId) {
+    return await this.userRepository.findUser({ _id: userId });
+  }
 }
 
 export default UserService;
