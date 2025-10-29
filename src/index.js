@@ -19,7 +19,7 @@ const server = http.createServer(app);
 // Setup socke.io
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:5173", // keep local one while running this app in local
+        origin: "https://todo-collab-frontend-nm629s5kn-saroj-kumar-das-projects.vercel.app", // keep local one while running this app in local
         credentials: true
     }
 });
@@ -31,13 +31,13 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use(cors({
-    origin: "http://localhost:5173", // keep local one while running this app in local
+    origin: "https://todo-collab-frontend-nm629s5kn-saroj-kumar-das-projects.vercel.app", // keep local one while running this app in local
     credentials: true
 }))
 
-app.get("/hi", (req, res) => {
-    res.send("hello")
-})
+app.get('/health', (req, res) => {
+    res.status(200).send('Server is alive and breathing.');
+});
 
 app.use("/users", userRouter);
 app.use("/tasks", createTaskRouter(io));
@@ -52,5 +52,3 @@ server.listen(serverConfig.PORT, () => {
     console.log(`Server is running on port ${serverConfig.PORT}`);
 });
 
-// https://todo-collab-frontend-nm629s5kn-saroj-kumar-das-projects.vercel.app
-// https://todo-collab-frontend-nm629s5kn-saroj-kumar-das-projects.vercel.app
