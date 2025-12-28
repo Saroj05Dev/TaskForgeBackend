@@ -1,3 +1,5 @@
+import AppError from "../utils/AppError.js";
+
 class TaskService {
   constructor(taskRepository, actionService, userRepository, io) {
     this.taskRepository = taskRepository;
@@ -28,7 +30,10 @@ class TaskService {
   async findTaskById(taskId, userId) {
     const task = await this.taskRepository.findTaskById(taskId, userId);
     if (!task) {
-      throw new Error("Task not found or you are not authorized to view it");
+      throw new AppError(
+        "Task not found or you are not authorized to view it",
+        404
+      );
     }
     return task;
   }
@@ -39,10 +44,7 @@ class TaskService {
     const currentTask = await this.taskRepository.findTaskById(taskId);
 
     if (!currentTask) {
-      console.log("Service: Task not found in DB", taskId);
-      const error = new Error("Task not found!");
-      error.statusCode = 404;
-      throw error;
+      throw new AppError("Task not found!", 404);
     }
 
     // Ownership check (check ObjectId correctly)
@@ -50,10 +52,7 @@ class TaskService {
     const assignedUserId = currentTask.assignedUser?._id?.toString();
 
     if (createdById !== String(userId) && assignedUserId !== String(userId)) {
-      console.log("Service: User not authorized", userId);
-      const error = new Error("You are not authorized to update this task.");
-      error.statusCode = 403;
-      throw error;
+      throw new AppError("You are not authorized to update this task.", 403);
     }
 
     // Conflict detection
@@ -78,9 +77,7 @@ class TaskService {
     });
 
     if (!updatedTask) {
-      const error = new Error("Task not found during update");
-      error.statusCode = 404;
-      throw error;
+      throw new AppError("Task not found during update", 404);
     }
 
     // Emit real-time update
@@ -100,9 +97,7 @@ class TaskService {
     const assignedUserId = currentTask.assignedUser?._id?.toString();
 
     if (createdById !== String(userId) && assignedUserId !== String(userId)) {
-      const error = new Error("You are not authorized to delete this task.");
-      error.statusCode = 403;
-      throw error;
+      throw new AppError("You are not authorized to delete this task.", 403);
     }
 
     const deletedTask = await this.taskRepository.deleteTask(taskId);
@@ -119,7 +114,7 @@ class TaskService {
 
   async smartAssign(taskId, userId) {
     // 1. Find all users
-    const users = await this.taskRepository.getAllUsers();
+    const users = await this.userRepository.getAllUsers();
 
     const currentTask = await this.taskRepository.findTaskById(taskId);
     const creatorId = currentTask.createdBy._id
@@ -127,9 +122,7 @@ class TaskService {
       : currentTask.createdBy.toString();
 
     if (creatorId !== userId.toString()) {
-      const error = new Error("Only the creator can assign this task.");
-      error.statusCode = 403;
-      throw error;
+      throw new AppError("Only the creator can assign this task.", 403);
     }
 
     // 2. Count active tasks for each user
@@ -146,7 +139,7 @@ class TaskService {
     const targetUser = userTaskCounts.reduce((minUser, currUser) =>
       currUser.count < minUser.count ? currUser : minUser
     );
-    
+
     // 4. Update the task's assignedTo field
     const updatedTask = await this.taskRepository.updateTask(taskId, {
       assignedUser: targetUser.userId,
@@ -170,7 +163,7 @@ class TaskService {
 
     const currentTask = await this.taskRepository.findTaskById(taskId);
     if (!currentTask) {
-      throw new Error("Task not found");
+      throw new AppError("Task not found", 404);
     }
 
     const createdById =
@@ -184,11 +177,10 @@ class TaskService {
       createdById !== userId.toString() &&
       assignedUserId !== userId.toString()
     ) {
-      const error = new Error(
-        "You are not authorized to resolve this conflict."
+      throw new AppError(
+        "You are not authorized to resolve this conflict.",
+        403
       );
-      error.statusCode = 403;
-      throw error;
     }
 
     let updatedData;
@@ -205,7 +197,7 @@ class TaskService {
         lastModified: Date.now(),
       };
     } else {
-      throw new Error("Invalid resolution type");
+      throw new AppError("Invalid resolution type", 400);
     }
 
     const updatedTask = await this.taskRepository.updateTask(

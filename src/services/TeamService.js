@@ -1,3 +1,5 @@
+import AppError from "../utils/AppError.js";
+
 class TeamService {
   constructor(teamRepository, userRepository, actionService, io) {
     this.teamRepository = teamRepository;
@@ -24,22 +26,19 @@ class TeamService {
   async inviteMember(teamId, inviterId, email) {
     const team = await this.teamRepository.getTeamById(teamId);
     if (!team) {
-      const err = new Error("Team not found");
-      err.statusCode = 404;
-      throw err;
+      throw new AppError("Team not found", 404);
     }
 
     if (team.createdBy.toString() !== inviterId.toString()) {
-      const err = new Error("You are not authorized to invite members to this team.");
-      err.statusCode = 403;
-      throw err;
+      throw new AppError(
+        "You are not authorized to invite members to this team.",
+        403
+      );
     }
 
-    const user = await this.userRepository.findUser({email: email});
+    const user = await this.userRepository.findUser({ email: email });
     if (!user) {
-      const err = new Error("User with this email doesn't exist");
-      err.statusCode = 404;
-      throw err;
+      throw new AppError("User with this email doesn't exist", 404);
     }
 
     const updatedTeam = await this.teamRepository.addMemberToTeam(
@@ -67,17 +66,15 @@ class TeamService {
   async getTeamById(teamId, userId) {
     const team = await this.teamRepository.getTeamById(teamId);
     if (!team) {
-      const error = new Error("Team not found");
-      error.statusCode = 404;
-      throw error;
+      throw new AppError("Team not found", 404);
     }
 
     // Check if the user is a member of the team
-    const isMember = team.members.some(member => member._id.toString() === userId.toString());
+    const isMember = team.members.some(
+      (member) => member._id.toString() === userId.toString()
+    );
     if (!isMember) {
-      const error = new Error("You are not authorized to view this team.");
-      error.statusCode = 403;
-      throw error;
+      throw new AppError("You are not authorized to view this team.", 403);
     }
 
     return team;

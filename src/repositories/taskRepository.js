@@ -1,5 +1,6 @@
 import Task from "../schemas/taskSchema.js";
 import User from "../schemas/userSchema.js";
+import mongoose from "mongoose";
 
 class TaskRepository {
   async createTask(task) {
@@ -19,7 +20,7 @@ class TaskRepository {
       err.statusCode = 500;
       throw err;
     }
-  } 
+  }
 
   async findTask(userId) {
     try {
@@ -33,43 +34,41 @@ class TaskRepository {
   }
 
   async findTaskById(taskId) {
-
-  const mongoose = (await import("mongoose")).default;
-  if (!mongoose.Types.ObjectId.isValid(taskId)) {
-    console.log("Invalid ObjectId:", taskId);
-    return null;
-  }
-
-  try {
-    const task = await Task.findById(taskId)
-      .populate("createdBy assignedUser", "fullName email");
-
-    return task;
-  } catch (error) {
-    console.error("Repo.findTaskById error:", error.message);
-    throw error;
-  }
-}
-
-  async updateTask(taskId, task) {
-  try {
-
-    const updatedTask = await Task.findByIdAndUpdate(taskId, task, {
-      new: true,
-      runValidators: true,
-    });
-
-    if (!updatedTask) {
-      console.log("Repo: Task not found during update:", taskId);
+    if (!mongoose.Types.ObjectId.isValid(taskId)) {
       return null;
     }
 
-    return updatedTask;
-  } catch (error) {
-    console.error("Repo.updateTask error:", error.message);
-    throw error;
+    try {
+      const task = await Task.findById(taskId).populate(
+        "createdBy assignedUser",
+        "fullName email"
+      );
+
+      return task;
+    } catch (error) {
+      console.error("Repo.findTaskById error:", error.message);
+      throw error;
+    }
   }
-}
+
+  async updateTask(taskId, task) {
+    try {
+      const updatedTask = await Task.findByIdAndUpdate(taskId, task, {
+        new: true,
+        runValidators: true,
+      });
+
+      if (!updatedTask) {
+        console.log("Repo: Task not found during update:", taskId);
+        return null;
+      }
+
+      return updatedTask;
+    } catch (error) {
+      console.error("Repo.updateTask error:", error.message);
+      throw error;
+    }
+  }
 
   async deleteTask(taskId) {
     try {
@@ -77,16 +76,6 @@ class TaskRepository {
       return deletedTask;
     } catch (error) {
       throw new Error("Error deleting task", error);
-    }
-  }
-
-  async getAllUsers() {
-    try {
-      const users = await User.find({}, "_id fullName email");
-      return users;
-    } catch (error) {
-      console.log(error);
-      throw new Error("Error getting all users", error);
     }
   }
 

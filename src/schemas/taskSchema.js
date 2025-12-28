@@ -1,71 +1,73 @@
 import mongoose from "mongoose";
 
-const taskSchema = new mongoose.Schema({
+const taskSchema = new mongoose.Schema(
+  {
     title: {
-        type: String,
-        required: true,
-        trim: true
+      type: String,
+      required: true,
+      trim: true,
     },
 
     description: {
-        type: String,
-        required: true,
-        trim: true
+      type: String,
+      required: true,
+      trim: true,
     },
 
     status: {
-        type: String,
-        enum: ["Todo", "In Progress", "Done"],
-        default: "Todo"
+      type: String,
+      enum: ["Todo", "In Progress", "Done"],
+      default: "Todo",
     },
 
     priority: {
-        type: String,
-        enum: ["Low", "Medium", "High"],
-        default: "Low"
+      type: String,
+      enum: ["Low", "Medium", "High"],
+      default: "Low",
     },
 
     lastModified: {
-        type: Date,
-        default: Date.now
+      type: Date,
+      default: Date.now,
     },
 
     assignedUser: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        default: null
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
 
     createdBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: false
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
     },
 
     updatedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
 
     attachments: [
-        {
-            filename: String,
-            fileUrl: String,
-            publicId: String,
-            uploadedBy: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: "User"
-            },
-            uploadedAt: {
-                type: Date,
-                default: Date.now
-            }
-        }
-    ]
+      {
+        filename: String,
+        fileUrl: String,
+        publicId: String,
+        uploadedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        uploadedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+  },
+  { timestamps: true }
+);
 
-}, {timestamps: true})
-
-taskSchema.index({ title: 1 }, {  unique: true });
+taskSchema.index({ title: 1, createdBy: 1 }, { unique: true });
 
 const Task = mongoose.model("Task", taskSchema);
 

@@ -1,41 +1,39 @@
 import mongoose from "mongoose";
 
-const subTaskSchema = new mongoose.Schema({
+const subTaskSchema = new mongoose.Schema(
+  {
     title: {
-        type: String,
-        required: true,
-        trim: true
+      type: String,
+      required: true,
+      trim: true,
     },
 
     status: {
-        type: String,
-        enum: ["Todo", "In Progress", "Done"],
-        default: "Todo"
+      type: String,
+      enum: ["Todo", "In Progress", "Done"],
+      default: "Todo",
     },
 
     parentTask: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Task",
-        required: true
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Task",
+      required: true,
     },
 
     createdBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
     },
 
     assignedUser: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: null
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
-
-    createdAt: {
-        type: Date,
-        default: Date.now
-    }
-}, { timestamps: true });
+  },
+  { timestamps: true }
+);
 
 const SubTasks = mongoose.model("SubTask", subTaskSchema);
 

@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import serverConfig from "../config/serverConfig.js";
+import AppError from "../utils/AppError.js";
 class UserService {
   constructor(userRepository) {
     this.userRepository = userRepository;
@@ -11,32 +12,30 @@ class UserService {
     });
 
     if (existingUser) {
-      throw { reason: "User with this email already exists", statusCode: 400 };
+      throw new AppError("User with this email already exists", 400);
     }
 
     const newUser = await this.userRepository.createUser(user);
 
     if (!newUser) {
-      throw { reason: "Error creating user", statusCode: 500 };
+      throw new AppError("Error creating user", 500);
     }
 
     return newUser;
   }
 
-
   async loginUser(authDetails) {
-
     if (!authDetails.email || !authDetails.password) {
-        throw {reason: "Email and password are required", statusCode: 400};
+      throw new AppError("Email and password are required", 400);
     }
 
     const existingUser = await this.userRepository.findUser(
       { email: authDetails.email },
-      true 
+      true
     );
 
     if (!existingUser) {
-      throw { reason: "Incorrect email or password", statusCode: 401 };
+      throw new AppError("Incorrect email or password", 401);
     }
 
     const isPasswordCorrect = await existingUser.comparePassword(
@@ -44,9 +43,9 @@ class UserService {
     );
 
     if (!isPasswordCorrect) {
-      throw { reason: "Incorrect email or password", statusCode: 401 };
+      throw new AppError("Incorrect email or password", 401);
     }
-    
+
     const token = jwt.sign(
       { id: existingUser._id, email: existingUser.email },
       serverConfig.JWT_SECRET,

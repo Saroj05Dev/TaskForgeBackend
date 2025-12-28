@@ -1,2 +1,15 @@
 .env
+.env.local
+.env.*.local
 node_modules/
+uploads/
+logs/
+*.log
+.DS_Store
+coverage/
+.vscode/
+.idea/
+dist/
+build/
+
+POSTMAN_API_GUIDE.md
