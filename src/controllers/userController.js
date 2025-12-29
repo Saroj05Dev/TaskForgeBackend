@@ -12,19 +12,37 @@ class UserController {
 
   async createUser(req, res) {
     const user = req.body;
+
     try {
+      // 1️ Create user
       const newUser = await this.userService.registerUser(user);
+
+      // 2️ Auto-login (generate token)
+      const loginPayload = await this.userService.loginUser({
+        email: user.email,
+        password: user.password,
+      });
+
+      // 3️ Set auth cookie (same as login)
+      res.cookie("authToken", loginPayload.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 1 * 24 * 60 * 60 * 1000,
+      });
+
       res.status(201).json({
         success: true,
-        message: "User created successfully",
-        data: newUser,
+        message: "User created and logged in successfully",
+        data: loginPayload.userData,
+        error: {},
       });
     } catch (error) {
-      console.log(error);
       res.status(error.statusCode || 500).json({
         success: false,
         message: error.reason || error.message,
         data: {},
+        error,
       });
     }
   }
