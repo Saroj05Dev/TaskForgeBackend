@@ -33,5 +33,11 @@ class TeamRepository {
   async getTeamById(teamId) {
     return await Teams.findById(teamId).populate("members", "fullName email");
   }
+
+  async findTeamByMember(userId) {
+    return await Teams.findOne({
+      members: userId,
+    }).populate("members", "fullName email");
+  }
 }
 export default TeamRepository;

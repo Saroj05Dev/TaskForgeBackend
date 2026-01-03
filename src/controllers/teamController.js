@@ -6,6 +6,7 @@ class TeamController {
     this.inviteMember = this.inviteMember.bind(this);
     this.removeMember = this.removeMember.bind(this);
     this.getTeamById = this.getTeamById.bind(this);
+    this.getMyTeam = this.getMyTeam.bind(this);
   }
 
   async createTeam(req, res) {
@@ -84,6 +85,28 @@ class TeamController {
       res.status(200).json({
         success: true,
         message: "Team found successfully",
+        data: team,
+        error: {},
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message,
+        data: {},
+        error: error.message,
+      });
+    }
+  }
+
+  async getMyTeam(req, res) {
+    try {
+      const team = await this.teamService.getMyTeam(
+        req.user.id
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Team fetched successfully",
         data: team,
         error: {},
       });

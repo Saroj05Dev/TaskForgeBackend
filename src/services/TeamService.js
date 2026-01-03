@@ -79,6 +79,19 @@ class TeamService {
 
     return team;
   }
+
+  async getMyTeam(userId) {
+  const team = await this.teamRepository.findTeamByMember(
+    userId
+  );
+
+  if (!team) {
+    throw new AppError("No team found for this user", 404);
+  }
+
+  return team;
+}
+
 }
 
 export default TeamService;

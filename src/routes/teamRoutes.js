@@ -16,13 +16,22 @@ const createTeamRouter = (io) => {
   const actionRepository = new ActionRepository();
   const actionService = new ActionService(actionRepository, io);
 
-  const userRepository = new UserRepository();  
-  const teamService = new TeamService(teamRepository, userRepository, actionService, io);
+  const userRepository = new UserRepository();
+  const teamService = new TeamService(
+    teamRepository,
+    userRepository,
+    actionService,
+    io
+  );
   const teamController = new TeamController(teamService);
 
   // Routes
   teamRouter.post("/", isLoggedIn, (req, res) =>
     teamController.createTeam(req, res)
+  );
+
+  teamRouter.get("/my", isLoggedIn, (req, res) =>
+    teamController.getMyTeam(req, res)
   );
 
   teamRouter.post("/:teamId/invite-member", isLoggedIn, (req, res) =>
