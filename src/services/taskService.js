@@ -1,10 +1,19 @@
 import AppError from "../utils/AppError.js";
 
 class TaskService {
-  constructor(taskRepository, actionService, userRepository, io) {
+  constructor(
+    taskRepository,
+    actionService,
+    userRepository,
+    sharedTaskRepository,
+    teamRepository,
+    io
+  ) {
     this.taskRepository = taskRepository;
     this.actionService = actionService;
     this.userRepository = userRepository;
+    this.sharedTaskRepository = sharedTaskRepository;
+    this.teamRepository = teamRepository;
     this.io = io;
   }
 
@@ -23,18 +32,74 @@ class TaskService {
   }
 
   async findTask(userId) {
-    const tasks = await this.taskRepository.findTask(userId);
-    return tasks;
+    // Get personal tasks (created by or assigned to user)
+    const personalTasks = await this.taskRepository.findTask(userId);
+
+    // Get user's teams
+    const userTeams = await this.teamRepository.getTeamsByUser(userId);
+    const teamIds = userTeams.map((team) => team._id);
+
+    // Get all task IDs shared with user's teams
+    let sharedTaskIds = [];
+    for (const teamId of teamIds) {
+      const teamTaskIds = await this.sharedTaskRepository.getTaskIdsByTeam(
+        teamId
+      );
+      sharedTaskIds = sharedTaskIds.concat(teamTaskIds);
+    }
+
+    // Get shared tasks
+    let sharedTasks = [];
+    if (sharedTaskIds.length > 0) {
+      sharedTasks = await this.taskRepository.findTasksByIds(sharedTaskIds);
+    }
+
+    // Merge and remove duplicates
+    const allTasks = [...personalTasks, ...sharedTasks];
+    const uniqueTasks = allTasks.filter(
+      (task, index, self) =>
+        index ===
+        self.findIndex((t) => t._id.toString() === task._id.toString())
+    );
+
+    return uniqueTasks;
   }
 
   async findTaskById(taskId, userId) {
-    const task = await this.taskRepository.findTaskById(taskId, userId);
+    const task = await this.taskRepository.findTaskById(taskId);
     if (!task) {
-      throw new AppError(
-        "Task not found or you are not authorized to view it",
-        404
-      );
+      throw new AppError("Task not found", 404);
     }
+
+    // Check if user has access to this task
+    const taskCreatorId =
+      task.createdBy?._id?.toString() || task.createdBy?.toString();
+    const assignedUserId =
+      task.assignedUser?._id?.toString() || task.assignedUser?.toString();
+
+    // User is creator or assigned user
+    if (
+      taskCreatorId === userId.toString() ||
+      assignedUserId === userId.toString()
+    ) {
+      return task;
+    }
+
+    // Check if task is shared with any of user's teams
+    const userTeams = await this.teamRepository.getTeamsByUser(userId);
+    const teamIds = userTeams.map((team) => team._id.toString());
+
+    const taskTeams = await this.sharedTaskRepository.getTeamsByTask(taskId);
+    const sharedTeamIds = taskTeams.map((st) => st.team._id.toString());
+
+    const hasTeamAccess = teamIds.some((teamId) =>
+      sharedTeamIds.includes(teamId)
+    );
+
+    if (!hasTeamAccess) {
+      throw new AppError("You are not authorized to view this task", 403);
+    }
+
     return task;
   }
 
@@ -51,7 +116,22 @@ class TaskService {
     const createdById = currentTask.createdBy?._id?.toString();
     const assignedUserId = currentTask.assignedUser?._id?.toString();
 
-    if (createdById !== String(userId) && assignedUserId !== String(userId)) {
+    // Check if user is creator or assigned user
+    let hasAccess =
+      createdById === String(userId) || assignedUserId === String(userId);
+
+    // If not, check if user has team access
+    if (!hasAccess) {
+      const userTeams = await this.teamRepository.getTeamsByUser(userId);
+      const teamIds = userTeams.map((team) => team._id.toString());
+
+      const taskTeams = await this.sharedTaskRepository.getTeamsByTask(taskId);
+      const sharedTeamIds = taskTeams.map((st) => st.team._id.toString());
+
+      hasAccess = teamIds.some((teamId) => sharedTeamIds.includes(teamId));
+    }
+
+    if (!hasAccess) {
       throw new AppError("You are not authorized to update this task.", 403);
     }
 
@@ -92,11 +172,36 @@ class TaskService {
   async deleteTask(taskId, userId) {
     const currentTask = await this.taskRepository.findTaskById(taskId);
 
+    if (!currentTask) {
+      throw new AppError("Task not found", 404);
+    }
+
     // Ownership check (check ObjectId correctly)
     const createdById = currentTask.createdBy?._id?.toString();
     const assignedUserId = currentTask.assignedUser?._id?.toString();
 
-    if (createdById !== String(userId) && assignedUserId !== String(userId)) {
+    // Check if user is creator or assigned user
+    let hasAccess =
+      createdById === String(userId) || assignedUserId === String(userId);
+
+    // If not, check if user has team access with 'full' permissions
+    if (!hasAccess) {
+      const userTeams = await this.teamRepository.getTeamsByUser(userId);
+      const teamIds = userTeams.map((team) => team._id.toString());
+
+      const taskTeams = await this.sharedTaskRepository.getTeamsByTask(taskId);
+
+      // Check if user has 'full' permission on any shared team
+      for (const sharedTask of taskTeams) {
+        const teamId = sharedTask.team._id.toString();
+        if (teamIds.includes(teamId) && sharedTask.permissions === "full") {
+          hasAccess = true;
+          break;
+        }
+      }
+    }
+
+    if (!hasAccess) {
       throw new AppError("You are not authorized to delete this task.", 403);
     }
 

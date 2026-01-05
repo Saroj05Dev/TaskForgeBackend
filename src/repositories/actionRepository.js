@@ -14,18 +14,33 @@ class ActionRepository {
     }
   }
 
-  async getRecentActions(limit = 20) {
+  async getRecentActionsForUser(userId, limit = 20) {
     try {
-      const actions = await Action.find()
+      const actions = await Action.find({
+        $or: [
+          { user: userId }, // user performed the action
+
+          // task-based access
+          {
+            task: {
+              $ne: null,
+            },
+          },
+        ],
+      })
         .sort({ createdAt: -1 })
         .limit(limit)
         .populate("user", "fullName email")
-        .populate("task", "title")
-        .lean(); // return plain objects
+        .populate({
+          path: "task",
+          select: "title createdBy assignedUser",
+        })
+        .lean();
+
       return actions;
     } catch (error) {
-      console.log(error);
-      throw new Error("Error getting recent actions", error);
+      console.error(error);
+      throw new Error("Error getting recent actions");
     }
   }
 

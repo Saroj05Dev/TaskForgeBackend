@@ -29,9 +29,13 @@ const actionSchema = new mongoose.Schema(
         "subtask_added",
         "subtask_updated",
         "subtask_deleted",
-        "team_created", 
+        "team_created",
+        "team_updated",
         "member_invited",
         "member_removed",
+        "left_team",
+        "shared_with_team",
+        "unshared_from_team",
       ],
       required: true,
     },
@@ -39,7 +43,7 @@ const actionSchema = new mongoose.Schema(
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
-    }
+    },
   },
   {
     timestamps: { type: Date, default: Date.now },

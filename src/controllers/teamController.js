@@ -6,7 +6,9 @@ class TeamController {
     this.inviteMember = this.inviteMember.bind(this);
     this.removeMember = this.removeMember.bind(this);
     this.getTeamById = this.getTeamById.bind(this);
-    this.getMyTeam = this.getMyTeam.bind(this);
+    this.getMyTeams = this.getMyTeams.bind(this);
+    this.updateTeam = this.updateTeam.bind(this);
+    this.leaveTeam = this.leaveTeam.bind(this);
   }
 
   async createTeam(req, res) {
@@ -61,7 +63,11 @@ class TeamController {
   async removeMember(req, res) {
     try {
       const { teamId, userId } = req.params;
-      const updatedTeam = await this.teamService.removeMember(teamId, userId);
+      const updatedTeam = await this.teamService.removeMember(
+        teamId,
+        userId,
+        req.user.id // requesterId
+      );
       res.status(200).json({
         success: true,
         message: "Member removed successfully",
@@ -98,16 +104,59 @@ class TeamController {
     }
   }
 
-  async getMyTeam(req, res) {
+  async getMyTeams(req, res) {
     try {
-      const team = await this.teamService.getMyTeam(
-        req.user.id
-      );
+      const teams = await this.teamService.getMyTeams(req.user.id);
 
       res.status(200).json({
         success: true,
-        message: "Team fetched successfully",
-        data: team,
+        message: "Teams fetched successfully",
+        data: teams,
+        error: {},
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message,
+        data: {},
+        error: error.message,
+      });
+    }
+  }
+
+  async updateTeam(req, res) {
+    try {
+      const { teamId } = req.params;
+      const updates = req.body;
+      const updatedTeam = await this.teamService.updateTeam(
+        teamId,
+        updates,
+        req.user.id
+      );
+      res.status(200).json({
+        success: true,
+        message: "Team updated successfully",
+        data: updatedTeam,
+        error: {},
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message,
+        data: {},
+        error: error.message,
+      });
+    }
+  }
+
+  async leaveTeam(req, res) {
+    try {
+      const { teamId } = req.params;
+      const result = await this.teamService.leaveTeam(teamId, req.user.id);
+      res.status(200).json({
+        success: true,
+        message: "Left team successfully",
+        data: result,
         error: {},
       });
     } catch (error) {

@@ -12,6 +12,7 @@ import createAttachmentRouter from "./routes/attatchmentRoutes.js";
 import createSubTaskRouter from "./routes/subtasksRoutes.js";
 import cors from "cors";
 import createTeamRouter from "./routes/teamRoutes.js";
+import createSharedTaskRouter from "./routes/sharedTaskRoutes.js";
 import { validateEnv } from "./utils/validateEnv.js";
 import errorHandler from "./middlewares/errorHandler.js";
 
@@ -53,6 +54,7 @@ app.use("/comments", createcommentRouter(io));
 app.use("/attachments", createAttachmentRouter(io));
 app.use("/subtasks", createSubTaskRouter(io));
 app.use("/teams", createTeamRouter(io));
+app.use("/shared-tasks", createSharedTaskRouter(io));
 
 // Global error handler (must be last)
 app.use(errorHandler);

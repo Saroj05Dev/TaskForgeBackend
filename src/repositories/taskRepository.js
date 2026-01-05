@@ -135,6 +135,18 @@ class TaskRepository {
       throw error;
     }
   }
+
+  async findTasksByIds(taskIds) {
+    try {
+      const tasks = await Task.find({
+        _id: { $in: taskIds },
+      }).populate("createdBy assignedUser", "fullName email");
+      return tasks;
+    } catch (error) {
+      console.error("Repo.findTasksByIds error:", error.message);
+      throw new Error("Error finding tasks by IDs: " + error.message);
+    }
+  }
 }
 
 export default TaskRepository;

@@ -7,7 +7,8 @@ class ActionController {
 
     async getRecentActions(req, res) {
         try {
-            const actions = await this.actionService.getRecentActions();
+            const userId = req.user.id;
+            const actions = await this.actionService.getRecentActions(userId);
             res.status(200).json({
                 success: true,
                 message: "Actions found successfully",

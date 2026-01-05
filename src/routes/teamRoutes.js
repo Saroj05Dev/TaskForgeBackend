@@ -30,16 +30,24 @@ const createTeamRouter = (io) => {
     teamController.createTeam(req, res)
   );
 
-  teamRouter.get("/my", isLoggedIn, (req, res) =>
-    teamController.getMyTeam(req, res)
+  teamRouter.get("/", isLoggedIn, (req, res) =>
+    teamController.getMyTeams(req, res)
   );
 
   teamRouter.post("/:teamId/invite-member", isLoggedIn, (req, res) =>
     teamController.inviteMember(req, res)
   );
 
-  teamRouter.delete("/:teamId/remove-member/:userId", isLoggedIn, (req, res) =>
+  teamRouter.delete("/:teamId/members/:userId", isLoggedIn, (req, res) =>
     teamController.removeMember(req, res)
+  );
+
+  teamRouter.patch("/:teamId", isLoggedIn, (req, res) =>
+    teamController.updateTeam(req, res)
+  );
+
+  teamRouter.post("/:teamId/leave", isLoggedIn, (req, res) =>
+    teamController.leaveTeam(req, res)
   );
 
   teamRouter.get("/:teamId", isLoggedIn, (req, res) =>

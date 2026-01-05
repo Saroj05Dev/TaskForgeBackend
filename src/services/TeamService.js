@@ -54,11 +54,31 @@ class TeamService {
     return updatedTeam;
   }
 
-  async removeMember(teamId, userId) {
+  async removeMember(teamId, userId, requesterId) {
+    const team = await this.teamRepository.getTeamById(teamId);
+    if (!team) {
+      throw new AppError("Team not found", 404);
+    }
+
+    // Only team creator can remove members
+    if (team.createdBy.toString() !== requesterId.toString()) {
+      throw new AppError("Only the team creator can remove members", 403);
+    }
+
+    // Cannot remove the creator
+    if (team.createdBy.toString() === userId.toString()) {
+      throw new AppError("Cannot remove the team creator", 400);
+    }
+
     const updatedTeam = await this.teamRepository.removeMemberFromTeam(
       teamId,
       userId
     );
+
+    await this.actionService.logAndEmit(requesterId, null, "member_removed", {
+      removedUserId: userId,
+    });
+
     this.io.emit("memberRemoved", updatedTeam);
     return updatedTeam;
   }
@@ -80,18 +100,78 @@ class TeamService {
     return team;
   }
 
-  async getMyTeam(userId) {
-  const team = await this.teamRepository.findTeamByMember(
-    userId
-  );
-
-  if (!team) {
-    throw new AppError("No team found for this user", 404);
+  async getMyTeams(userId) {
+    const teams = await this.teamRepository.getTeamsByUser(userId);
+    if (!teams || teams.length === 0) {
+      return [];
+    }
+    return teams;
   }
 
-  return team;
-}
+  async updateTeam(teamId, updates, userId) {
+    const team = await this.teamRepository.getTeamById(teamId);
+    if (!team) {
+      throw new AppError("Team not found", 404);
+    }
 
+    // Only creator can update team
+    if (team.createdBy.toString() !== userId.toString()) {
+      throw new AppError("Only the team creator can update team details", 403);
+    }
+
+    // Validate updates (only allow name and description)
+    const allowedUpdates = {};
+    if (updates.name) allowedUpdates.name = updates.name;
+    if (updates.description !== undefined)
+      allowedUpdates.description = updates.description;
+
+    const updatedTeam = await this.teamRepository.updateTeamDetails(
+      teamId,
+      allowedUpdates
+    );
+
+    await this.actionService.logAndEmit(userId, null, "team_updated", {
+      teamName: updatedTeam.name,
+    });
+
+    this.io.emit("teamUpdated", updatedTeam);
+    return updatedTeam;
+  }
+
+  async leaveTeam(teamId, userId) {
+    const team = await this.teamRepository.getTeamById(teamId);
+    if (!team) {
+      throw new AppError("Team not found", 404);
+    }
+
+    // Creator cannot leave, must delete team or transfer ownership
+    if (team.createdBy.toString() === userId.toString()) {
+      throw new AppError(
+        "Team creator cannot leave the team. Delete the team instead.",
+        400
+      );
+    }
+
+    // Check if user is a member
+    const isMember = team.members.some(
+      (member) => member._id.toString() === userId.toString()
+    );
+    if (!isMember) {
+      throw new AppError("You are not a member of this team", 400);
+    }
+
+    const updatedTeam = await this.teamRepository.removeMemberFromTeam(
+      teamId,
+      userId
+    );
+
+    await this.actionService.logAndEmit(userId, null, "left_team", {
+      teamName: team.name,
+    });
+
+    this.io.emit("memberLeft", { teamId, userId });
+    return updatedTeam;
+  }
 }
 
 export default TeamService;
