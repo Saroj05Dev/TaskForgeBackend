@@ -116,22 +116,39 @@ class TaskService {
     const createdById = currentTask.createdBy?._id?.toString();
     const assignedUserId = currentTask.assignedUser?._id?.toString();
 
-    // Check if user is creator or assigned user
-    let hasAccess =
+    // Check if user is creator or assigned user (full access)
+    let hasEditAccess =
       createdById === String(userId) || assignedUserId === String(userId);
 
-    // If not, check if user has team access
-    if (!hasAccess) {
+    // If not owner/assigned, check team permissions
+    if (!hasEditAccess) {
       const userTeams = await this.teamRepository.getTeamsByUser(userId);
       const teamIds = userTeams.map((team) => team._id.toString());
 
       const taskTeams = await this.sharedTaskRepository.getTeamsByTask(taskId);
-      const sharedTeamIds = taskTeams.map((st) => st.team._id.toString());
 
-      hasAccess = teamIds.some((teamId) => sharedTeamIds.includes(teamId));
+      // Check if user has edit or full permission through any team
+      for (const sharedTask of taskTeams) {
+        const teamId = sharedTask.team._id.toString();
+        if (teamIds.includes(teamId)) {
+          // User is in this team, check permission level
+          if (
+            sharedTask.permissions === "edit" ||
+            sharedTask.permissions === "full"
+          ) {
+            hasEditAccess = true;
+            break;
+          } else if (sharedTask.permissions === "view") {
+            throw new AppError(
+              "You have view-only access to this task. Cannot edit.",
+              403
+            );
+          }
+        }
+      }
     }
 
-    if (!hasAccess) {
+    if (!hasEditAccess) {
       throw new AppError("You are not authorized to update this task.", 403);
     }
 
@@ -180,28 +197,42 @@ class TaskService {
     const createdById = currentTask.createdBy?._id?.toString();
     const assignedUserId = currentTask.assignedUser?._id?.toString();
 
-    // Check if user is creator or assigned user
-    let hasAccess =
+    // Check if user is creator or assigned user (full access)
+    let hasDeleteAccess =
       createdById === String(userId) || assignedUserId === String(userId);
 
-    // If not, check if user has team access with 'full' permissions
-    if (!hasAccess) {
+    // If not owner/assigned, check team permissions
+    if (!hasDeleteAccess) {
       const userTeams = await this.teamRepository.getTeamsByUser(userId);
       const teamIds = userTeams.map((team) => team._id.toString());
 
       const taskTeams = await this.sharedTaskRepository.getTeamsByTask(taskId);
 
       // Check if user has 'full' permission on any shared team
+      let hasTeamAccess = false;
       for (const sharedTask of taskTeams) {
         const teamId = sharedTask.team._id.toString();
-        if (teamIds.includes(teamId) && sharedTask.permissions === "full") {
-          hasAccess = true;
-          break;
+        if (teamIds.includes(teamId)) {
+          hasTeamAccess = true;
+          if (sharedTask.permissions === "full") {
+            hasDeleteAccess = true;
+            break;
+          } else {
+            // User has access but not full permission
+            throw new AppError(
+              `You have ${sharedTask.permissions} access. Only users with 'full' permission can delete this task.`,
+              403
+            );
+          }
         }
+      }
+
+      if (!hasTeamAccess) {
+        throw new AppError("You are not authorized to delete this task.", 403);
       }
     }
 
-    if (!hasAccess) {
+    if (!hasDeleteAccess) {
       throw new AppError("You are not authorized to delete this task.", 403);
     }
 
