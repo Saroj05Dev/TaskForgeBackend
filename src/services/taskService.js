@@ -248,50 +248,99 @@ class TaskService {
     return this.taskRepository.countAll(userId);
   }
 
-  async smartAssign(taskId, userId) {
-    // 1. Find all users
-    const users = await this.userRepository.getAllUsers();
+  async smartAssign(taskId, userId, teamId) {
+    // 1. Validate teamId is provided
+    if (!teamId) {
+      throw new AppError("teamId is required for smart assignment", 400);
+    }
 
+    // 2. Get current task and verify creator
     const currentTask = await this.taskRepository.findTaskById(taskId);
+    if (!currentTask) {
+      throw new AppError("Task not found", 404);
+    }
+
     const creatorId = currentTask.createdBy._id
       ? currentTask.createdBy._id.toString()
       : currentTask.createdBy.toString();
 
     if (creatorId !== userId.toString()) {
-      throw new AppError("Only the creator can assign this task.", 403);
+      throw new AppError("Only the task creator can use smart assign", 403);
     }
 
-    // 2. Count active tasks for each user
-    const userTaskCounts = await Promise.all(
-      users.map(async (user) => {
+    // 3. Verify team exists
+    const team = await this.teamRepository.getTeamById(teamId);
+    if (!team) {
+      throw new AppError("Team not found", 404);
+    }
+
+    // 4. Verify user is a member of the team
+    const isMember = team.members.some(
+      (member) => member._id.toString() === userId.toString()
+    );
+    if (!isMember) {
+      throw new AppError(
+        "You must be a member of the team to assign tasks to it",
+        403
+      );
+    }
+
+    // 5. Get team members excluding the creator
+    const teamMemberIds = team.members
+      .map((member) => member._id.toString())
+      .filter((memberId) => memberId !== userId.toString());
+
+    // 6. If no team members available, assign to creator
+    if (teamMemberIds.length === 0) {
+      const updatedTask = await this.taskRepository.updateTask(taskId, {
+        assignedUser: userId,
+      });
+
+      this.io.emit("taskUpdated", updatedTask);
+      await this.actionService.logAndEmit(userId, updatedTask._id, "assigned", {
+        assignedTo: "creator (no team members available)",
+      });
+
+      return {
+        task: updatedTask,
+        message: "No team members available. Task assigned to creator.",
+      };
+    }
+
+    // 7. Count active tasks for each team member
+    const memberTaskCounts = await Promise.all(
+      teamMemberIds.map(async (memberId) => {
         const count = await this.taskRepository.countActiveTasksForUser(
-          user._id
+          memberId
         );
-        return { userId: user._id, count: count };
+        return { userId: memberId, count: count };
       })
     );
 
-    // 3. Pick user with the lowest count
-    const targetUser = userTaskCounts.reduce((minUser, currUser) =>
+    // 8. Pick team member with the lowest count
+    const targetMember = memberTaskCounts.reduce((minUser, currUser) =>
       currUser.count < minUser.count ? currUser : minUser
     );
 
-    // 4. Update the task's assignedTo field
+    // 9. Update the task's assignedUser field
     const updatedTask = await this.taskRepository.updateTask(taskId, {
-      assignedUser: targetUser.userId,
+      assignedUser: targetMember.userId,
     });
 
-    // 5. Emit real-time update
+    // 10. Emit real-time update
     this.io.emit("taskUpdated", updatedTask);
 
-    // 6. Log the action
-    await this.actionService.logAndEmit(
-      userId, // the user whod triggered smart assign
-      updatedTask._id, // the task id
-      "assigned" // the action type
-    );
+    // 11. Log the action
+    await this.actionService.logAndEmit(userId, updatedTask._id, "assigned", {
+      assignedTo: targetMember.userId,
+      teamId: teamId,
+      activeTaskCount: targetMember.count,
+    });
 
-    return updatedTask;
+    return {
+      task: updatedTask,
+      message: `Task assigned to team member with ${targetMember.count} active tasks`,
+    };
   }
 
   async resolveConflict(taskId, userId, resolutionType, clientTask) {
