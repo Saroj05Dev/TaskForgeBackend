@@ -247,24 +247,47 @@ class TaskService {
       }
     }
 
-    // Conflict detection
-    if (
+    // Conflict detection - Use version if available, fallback to lastModified
+    let hasConflict = false;
+
+    if (task.version !== undefined && task.version < currentTask.version) {
+      // Version-based conflict detection (more reliable)
+      hasConflict = true;
+    } else if (
       task.lastModified &&
       new Date(task.lastModified) < new Date(currentTask.lastModified) &&
       currentTask.updatedBy?.toString() !== userId.toString()
     ) {
+      // Timestamp-based conflict detection (fallback)
+      hasConflict = true;
+    }
+
+    if (hasConflict) {
+      // Emit conflict notification
+      this.io.emit("taskConflict", {
+        taskId,
+        conflictedBy: userId,
+        serverVersion: currentTask,
+        message: `Task has been modified by ${
+          currentTask.updatedBy?.fullName || "another user"
+        }`,
+      });
+
       const error = new Error(
-        "Conflict detected, task has been modified by another user."
+        `Conflict detected. Server version: ${
+          currentTask.version
+        }, Client version: ${task.version || "unknown"}`
       );
       error.name = "ConflictError";
       error.task = currentTask;
       throw error;
     }
 
-    // Update task with resolved assignedUser
+    // Update task with resolved assignedUser and incremented version
     const updatedTask = await this.taskRepository.updateTask(taskId, {
       ...task,
       assignedUser,
+      version: currentTask.version + 1,
       lastModified: Date.now(),
       updatedBy: userId,
     });
@@ -440,13 +463,14 @@ class TaskService {
   }
 
   async resolveConflict(taskId, userId, resolutionType, clientTask) {
-    // Resolution type merge | overwrite
+    // Resolution type: merge | overwrite
 
     const currentTask = await this.taskRepository.findTaskById(taskId);
     if (!currentTask) {
       throw new AppError("Task not found", 404);
     }
 
+    // Authorization check (same logic as updateTask)
     const createdById =
       currentTask.createdBy?._id?.toString() ||
       currentTask.createdBy?.toString();
@@ -454,31 +478,84 @@ class TaskService {
       currentTask.assignedUser?._id?.toString() ||
       currentTask.assignedUser?.toString();
 
-    if (
-      createdById !== userId.toString() &&
-      assignedUserId !== userId.toString()
-    ) {
+    let hasEditAccess =
+      createdById === userId.toString() || assignedUserId === userId.toString();
+
+    // If not owner/assigned, check team permissions
+    if (!hasEditAccess) {
+      const userTeams = await this.teamRepository.getTeamsByUser(userId);
+      const teamIds = userTeams.map((team) => team._id.toString());
+      const taskTeams = await this.sharedTaskRepository.getTeamsByTask(taskId);
+
+      for (const sharedTask of taskTeams) {
+        const teamId = sharedTask.team._id.toString();
+        if (teamIds.includes(teamId)) {
+          if (
+            sharedTask.permissions === "edit" ||
+            sharedTask.permissions === "full"
+          ) {
+            hasEditAccess = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!hasEditAccess) {
       throw new AppError(
         "You are not authorized to resolve this conflict.",
         403
       );
     }
 
+    // Handle assigneeEmail if provided (same as updateTask)
+    let assignedUser = clientTask.assignedUser;
+
+    if (clientTask.assigneeEmail !== undefined) {
+      if (clientTask.assigneeEmail && clientTask.assigneeEmail.trim() !== "") {
+        const user = await this.userRepository.findUser({
+          email: clientTask.assigneeEmail.toLowerCase().trim(),
+        });
+
+        if (!user) {
+          throw new AppError(
+            `No user found with email: ${clientTask.assigneeEmail}`,
+            400
+          );
+        }
+
+        assignedUser = user._id;
+      } else {
+        assignedUser = null;
+      }
+    }
+
     let updatedData;
 
     if (resolutionType === "overwrite") {
+      // Client version completely replaces server version
       updatedData = {
         ...clientTask,
+        assignedUser,
+        version: currentTask.version + 1,
         lastModified: Date.now(),
+        updatedBy: userId,
       };
     } else if (resolutionType === "merge") {
+      // Merge server and client versions (client takes precedence)
       updatedData = {
         ...currentTask.toObject(),
-        ...clientTask, // client changes overwrite fields
+        ...clientTask,
+        assignedUser,
+        version: currentTask.version + 1,
         lastModified: Date.now(),
+        updatedBy: userId,
       };
     } else {
-      throw new AppError("Invalid resolution type", 400);
+      throw new AppError(
+        "Invalid resolution type. Use 'overwrite' or 'merge'",
+        400
+      );
     }
 
     const updatedTask = await this.taskRepository.updateTask(
@@ -486,9 +563,20 @@ class TaskService {
       updatedData
     );
 
+    // Emit real-time update
     this.io.emit("taskUpdated", updatedTask);
 
-    await this.actionService.logAndEmit(userId, updatedTask._id, "updated");
+    // Log conflict resolution
+    await this.actionService.logAndEmit(
+      userId,
+      updatedTask._id,
+      "conflict_resolved",
+      {
+        resolutionType,
+        previousVersion: currentTask.version,
+        newVersion: updatedTask.version,
+      }
+    );
 
     return updatedTask;
   }

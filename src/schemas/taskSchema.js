@@ -48,6 +48,11 @@ const taskSchema = new mongoose.Schema(
       ref: "User",
     },
 
+    version: {
+      type: Number,
+      default: 0,
+    },
+
     attachments: [
       {
         filename: String,

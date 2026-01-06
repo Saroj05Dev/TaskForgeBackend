@@ -36,6 +36,7 @@ const actionSchema = new mongoose.Schema(
         "left_team",
         "shared_with_team",
         "unshared_from_team",
+        "conflict_resolved",
       ],
       required: true,
     },
