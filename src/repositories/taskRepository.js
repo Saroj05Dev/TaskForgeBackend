@@ -26,7 +26,7 @@ class TaskRepository {
     try {
       const task = await Task.find({
         $or: [{ createdBy: userId }, { assignedUser: userId }],
-      }).populate("createdBy assignedUser", "fullName email");
+      }).populate("createdBy assignedUser", "fullName email")
       return task;
     } catch (error) {
       throw new Error("Error finding task", error);

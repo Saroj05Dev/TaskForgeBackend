@@ -31,6 +31,48 @@ class TaskService {
     return newTask;
   }
 
+  // Helper method to populate sharedWith field for tasks
+  async populateSharedWith(tasks) {
+    // Handle single task or array of tasks
+    const tasksArray = Array.isArray(tasks) ? tasks : [tasks];
+
+    // Get all task IDs
+    const taskIds = tasksArray.map((task) => task._id.toString());
+
+    // Get all shared task entries for these tasks
+    const sharedTaskPromises = taskIds.map((taskId) =>
+      this.sharedTaskRepository.getTeamsByTask(taskId)
+    );
+    const sharedTaskResults = await Promise.all(sharedTaskPromises);
+
+    // Create a map of taskId -> sharedWith array
+    const sharedWithMap = {};
+    taskIds.forEach((taskId, index) => {
+      const sharedEntries = sharedTaskResults[index];
+      sharedWithMap[taskId] = sharedEntries.map((entry) => ({
+        team: {
+          _id: entry.team._id,
+          name: entry.team.name,
+        },
+        permissions: entry.permissions,
+        sharedBy: entry.sharedBy,
+        sharedAt: entry.sharedAt,
+      }));
+    });
+
+    // Add sharedWith to each task
+    const tasksWithShared = tasksArray.map((task) => {
+      const taskObj = task.toObject ? task.toObject() : task;
+      return {
+        ...taskObj,
+        sharedWith: sharedWithMap[task._id.toString()] || [],
+      };
+    });
+
+    // Return single object or array based on input
+    return Array.isArray(tasks) ? tasksWithShared : tasksWithShared[0];
+  }
+
   async findTask(userId) {
     // Get personal tasks (created by or assigned to user)
     const personalTasks = await this.taskRepository.findTask(userId);
@@ -62,7 +104,10 @@ class TaskService {
         self.findIndex((t) => t._id.toString() === task._id.toString())
     );
 
-    return uniqueTasks;
+    // Populate sharedWith information for all tasks
+    const tasksWithSharedInfo = await this.populateSharedWith(uniqueTasks);
+
+    return tasksWithSharedInfo;
   }
 
   async findTaskById(taskId, userId) {
@@ -82,7 +127,9 @@ class TaskService {
       taskCreatorId === userId.toString() ||
       assignedUserId === userId.toString()
     ) {
-      return task;
+      // Populate sharedWith information
+      const taskWithSharedInfo = await this.populateSharedWith(task);
+      return taskWithSharedInfo;
     }
 
     // Check if task is shared with any of user's teams
@@ -100,7 +147,9 @@ class TaskService {
       throw new AppError("You are not authorized to view this task", 403);
     }
 
-    return task;
+    // Populate sharedWith information
+    const taskWithSharedInfo = await this.populateSharedWith(task);
+    return taskWithSharedInfo;
   }
 
   // taskService.js
