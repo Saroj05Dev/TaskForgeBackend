@@ -3,9 +3,17 @@ import cloudinary from "../config/cloudinaryConfig.js";
 import AppError from "../utils/AppError.js";
 
 class AttachmentService {
-  constructor(attachmentRepository, actionService, io) {
+  constructor(
+    attachmentRepository,
+    taskRepository,
+    actionService,
+    authHelper,
+    io
+  ) {
     this.attachmentRepository = attachmentRepository;
+    this.taskRepository = taskRepository;
     this.actionService = actionService;
+    this.authHelper = authHelper;
     this.io = io;
   }
 
@@ -16,16 +24,8 @@ class AttachmentService {
       throw new AppError("Task not found!", 404);
     }
 
-    // Check permission: creator or assignedUser
-    if (
-      task.createdBy.toString() !== userId.toString() &&
-      (!task.assignedUser || task.assignedUser.toString() !== userId.toString())
-    ) {
-      throw new AppError(
-        "You are not authorized to add an attachment to this task.",
-        403
-      );
-    }
+    // Check permission: User needs edit or full permission
+    await this.authHelper.requirePermission(taskId, userId, task, "edit");
 
     // upload to cloudinary
     const result = await cloudinary.uploader.upload(file.path, {
@@ -64,15 +64,15 @@ class AttachmentService {
     );
     if (!attachment) throw new AppError("Attachment not found!", 404);
 
-    // Permission: only uploader or creator can delete
-    if (
-      task.createdBy.toString() !== userId.toString() &&
-      attachment.uploadedBy.toString() !== userId.toString()
-    ) {
-      throw new AppError(
-        "You are not authorized to delete this attachment.",
-        403
-      );
+    // Authorization check
+    const isUploader = attachment.uploadedBy.toString() === userId.toString();
+
+    if (isUploader) {
+      // Uploader can delete their own attachment with edit permission
+      await this.authHelper.requirePermission(taskId, userId, task, "edit");
+    } else {
+      // Non-uploaders need full permission to delete others' attachments
+      await this.authHelper.requirePermission(taskId, userId, task, "delete");
     }
 
     // Remove from cloudinary
@@ -96,16 +96,9 @@ class AttachmentService {
     if (!task) {
       throw new AppError("Task not found", 404);
     }
-    // Permission: only creator or assignedUser can fetch
-    if (
-      task.createdBy.toString() !== userId.toString() &&
-      (!task.assignedUser || task.assignedUser.toString() !== userId.toString())
-    ) {
-      throw new AppError(
-        "You are not authorized to view this task attachments.",
-        403
-      );
-    }
+
+    // Permission: User needs at least view permission
+    await this.authHelper.requirePermission(taskId, userId, task, "view");
     const attachments = await this.attachmentRepository.fetchAllAttachments(
       taskId
     );

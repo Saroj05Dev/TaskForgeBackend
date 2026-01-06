@@ -1,8 +1,15 @@
 class CommentService {
-  constructor(commentRepository, taskRepository, actionService, io) {
+  constructor(
+    commentRepository,
+    taskRepository,
+    actionService,
+    authHelper,
+    io
+  ) {
     this.commentRepository = commentRepository;
     this.actionService = actionService;
     this.taskRepository = taskRepository;
+    this.authHelper = authHelper;
     this.io = io;
   }
 
@@ -15,24 +22,26 @@ class CommentService {
       throw error;
     }
 
-    // Authorization check: Only creator or assigned user can add comments
-    const createdById = task.createdBy?._id?.toString();
-    const assignedUserId = task.assignedUser?._id?.toString();
-    
-    if (createdById !== String(userId) && assignedUserId !== String(userId)) {
-      const error = new Error("You are not authorized to add a comment to this task.");
-      error.statusCode = 403;
-      throw error;
-    }
+    // Authorization check: User needs edit or full permission
+    await this.authHelper.requirePermission(taskId, userId, task, "edit");
 
     // Create the comment in the database
-    const newComment = await this.commentRepository.createComment({ taskId, userId, comment: commentText });
+    const newComment = await this.commentRepository.createComment({
+      taskId,
+      userId,
+      comment: commentText,
+    });
 
     // Broadcast real-time update
     this.io.emit("commentAdded", newComment);
 
     // Log the action
-    await this.actionService.logAndEmit(userId, newComment._id, "comment_added", { commentText });
+    await this.actionService.logAndEmit(
+      userId,
+      newComment._id,
+      "comment_added",
+      { commentText }
+    );
 
     return newComment;
   }
@@ -46,32 +55,48 @@ class CommentService {
       throw error;
     }
 
-    // Get the task to check for creator/assignee permissions
+    // Get the task to check permissions
     const task = await this.taskRepository.findTaskById(comment.taskId);
     if (!task) {
-        const error = new Error("Task not found!");
-        error.statusCode = 404;
-        throw error;
-    }
-
-    // Authorization check: User can delete if they are the comment's owner, the task creator, or the assigned user
-    const isCommentOwner = comment.userId.toString() === userId.toString();
-    const isTaskCreator = task.createdBy?._id?.toString() === String(userId);
-    const isTaskAssignee = task.assignedUser?._id?.toString() === String(userId);
-    
-    if (!isCommentOwner && !isTaskCreator && !isTaskAssignee) {
-      const error = new Error("You are not authorized to delete this comment.");
-      error.statusCode = 403;
+      const error = new Error("Task not found!");
+      error.statusCode = 404;
       throw error;
     }
 
-    const deletedComment = await this.commentRepository.deleteComment(commentId);
+    // Authorization check
+    const isCommentOwner = comment.userId.toString() === userId.toString();
+
+    if (isCommentOwner) {
+      // Comment owner can delete their own comment with edit permission
+      await this.authHelper.requirePermission(
+        comment.taskId,
+        userId,
+        task,
+        "edit"
+      );
+    } else {
+      // Non-owners need full permission to delete others' comments
+      await this.authHelper.requirePermission(
+        comment.taskId,
+        userId,
+        task,
+        "delete"
+      );
+    }
+
+    const deletedComment = await this.commentRepository.deleteComment(
+      commentId
+    );
 
     // Emit real-time event
     this.io.emit("commentDeleted", deletedComment);
 
     // Log action
-    await this.actionService.logAndEmit(userId, deletedComment.taskId, "comment_deleted");
+    await this.actionService.logAndEmit(
+      userId,
+      deletedComment.taskId,
+      "comment_deleted"
+    );
 
     return deletedComment;
   }
@@ -83,16 +108,14 @@ class CommentService {
       error.statusCode = 404;
       throw error;
     }
-    
-    // Authorization check: Only the creator & assignee can view the comments
-    const createdById = currentTask.createdBy?._id?.toString();
-    const assignedUserId = currentTask.assignedUser?._id?.toString();
-    
-    if (createdById !== String(userId) && assignedUserId !== String(userId)) {
-      const error = new Error("You are not authorized to view this task.");
-      error.statusCode = 403;
-      throw error;
-    }
+
+    // Authorization check: User needs at least view permission
+    await this.authHelper.requirePermission(
+      taskId,
+      userId,
+      currentTask,
+      "view"
+    );
 
     return await this.commentRepository.getCommentsByTaskId(taskId);
   }
