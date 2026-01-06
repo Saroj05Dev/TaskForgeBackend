@@ -18,10 +18,32 @@ class TaskService {
   }
 
   async createTask(task, userId) {
+    // Handle assigneeEmail if provided
+    let assignedUser = task.assignedUser; // Keep backward compatibility
+
+    if (task.assigneeEmail && task.assigneeEmail.trim() !== "") {
+      // Lookup user by email using existing findUser method
+      const user = await this.userRepository.findUser({
+        email: task.assigneeEmail.toLowerCase().trim(),
+      });
+
+      if (!user) {
+        throw new AppError(
+          `No user found with email: ${task.assigneeEmail}`,
+          400
+        );
+      }
+
+      assignedUser = user._id;
+    }
+
+    // Create task with resolved assignedUser
     const newTask = await this.taskRepository.createTask({
       ...task,
+      assignedUser,
       createdBy: userId,
     });
+
     // Real time task emit
     this.io.emit("taskCreated", newTask);
 
@@ -201,6 +223,30 @@ class TaskService {
       throw new AppError("You are not authorized to update this task.", 403);
     }
 
+    // Handle assigneeEmail if provided
+    let assignedUser = task.assignedUser; // Keep backward compatibility
+
+    if (task.assigneeEmail !== undefined) {
+      if (task.assigneeEmail && task.assigneeEmail.trim() !== "") {
+        // Lookup user by email using existing findUser method
+        const user = await this.userRepository.findUser({
+          email: task.assigneeEmail.toLowerCase().trim(),
+        });
+
+        if (!user) {
+          throw new AppError(
+            `No user found with email: ${task.assigneeEmail}`,
+            400
+          );
+        }
+
+        assignedUser = user._id;
+      } else {
+        // Empty email means unassign
+        assignedUser = null;
+      }
+    }
+
     // Conflict detection
     if (
       task.lastModified &&
@@ -215,9 +261,10 @@ class TaskService {
       throw error;
     }
 
-    // Update task
+    // Update task with resolved assignedUser
     const updatedTask = await this.taskRepository.updateTask(taskId, {
       ...task,
+      assignedUser,
       lastModified: Date.now(),
       updatedBy: userId,
     });
