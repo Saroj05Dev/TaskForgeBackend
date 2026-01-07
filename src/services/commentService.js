@@ -4,12 +4,14 @@ class CommentService {
     taskRepository,
     actionService,
     authHelper,
+    userRepository,
     io
   ) {
     this.commentRepository = commentRepository;
     this.actionService = actionService;
     this.taskRepository = taskRepository;
     this.authHelper = authHelper;
+    this.userRepository = userRepository;
     this.io = io;
   }
 
@@ -88,8 +90,19 @@ class CommentService {
       commentId
     );
 
-    // Emit real-time event
-    this.io.emit("commentDeleted", deletedComment);
+    // Fetch user details for event
+    const user = await this.userRepository.findUserById(userId);
+
+    // Emit real-time event with minimal payload
+    this.io.emit("commentDeleted", {
+      commentId: deletedComment._id,
+      taskId: deletedComment.taskId,
+      deletedBy: {
+        _id: userId,
+        fullName: user?.fullName || "Unknown",
+        email: user?.email || "unknown@example.com",
+      },
+    });
 
     // Log action
     await this.actionService.logAndEmit(

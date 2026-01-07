@@ -4,12 +4,14 @@ class SubTaskService {
     taskRepository,
     actionService,
     authHelper,
+    userRepository,
     io
   ) {
     this.subtaskRepository = subtaskRepository;
     this.taskRepository = taskRepository;
     this.actionService = actionService;
     this.authHelper = authHelper;
+    this.userRepository = userRepository;
     this.io = io;
   }
 
@@ -31,8 +33,8 @@ class SubTaskService {
       createdBy: userId,
     });
 
-    // Real-time emit
-    this.io.emit("subtaskCreated", created);
+    // Real-time emit - renamed from subtaskCreated to subtaskAdded
+    this.io.emit("subtaskAdded", created);
 
     // Action log
     this.actionService.logAndEmit(userId, created._id, "subtask_added", {
@@ -75,7 +77,20 @@ class SubTaskService {
       subtask
     );
 
-    this.io.emit("subtaskUpdated", updated);
+    // Fetch user details for event
+    const user = await this.userRepository.findUserById(userId);
+
+    // Add updatedBy to payload
+    const updatedWithUser = {
+      ...updated.toObject(),
+      updatedBy: {
+        _id: userId,
+        fullName: user?.fullName || "Unknown",
+        email: user?.email || "unknown@example.com",
+      },
+    };
+
+    this.io.emit("subtaskUpdated", updatedWithUser);
     await this.actionService.logAndEmit(
       userId,
       updated.parentTask,
@@ -129,7 +144,19 @@ class SubTaskService {
 
     const deleted = await this.subtaskRepository.deleteSubTask(subtaskId);
 
-    this.io.emit("subtaskDeleted", deleted);
+    // Fetch user details for event
+    const user = await this.userRepository.findUserById(userId);
+
+    // Emit minimal payload
+    this.io.emit("subtaskDeleted", {
+      subtaskId: deleted._id,
+      taskId: deleted.parentTask,
+      deletedBy: {
+        _id: userId,
+        fullName: user?.fullName || "Unknown",
+        email: user?.email || "unknown@example.com",
+      },
+    });
     await this.actionService.logAndEmit(
       userId,
       deleted.parentTask,

@@ -8,12 +8,14 @@ class AttachmentService {
     taskRepository,
     actionService,
     authHelper,
+    userRepository,
     io
   ) {
     this.attachmentRepository = attachmentRepository;
     this.taskRepository = taskRepository;
     this.actionService = actionService;
     this.authHelper = authHelper;
+    this.userRepository = userRepository;
     this.io = io;
   }
 
@@ -46,7 +48,26 @@ class AttachmentService {
       attachmentsData
     );
 
-    this.io.emit("attachmentAdded", { taskId, attachment: attachmentsData });
+    // Fetch user details for event
+    const user = await this.userRepository.findUserById(userId);
+
+    // Get the newly added attachment ID
+    const newAttachment =
+      updatedTask.attachments[updatedTask.attachments.length - 1];
+
+    // Emit with full attachment structure
+    this.io.emit("attachmentAdded", {
+      _id: newAttachment._id,
+      task: taskId,
+      filename: attachmentsData.filename,
+      url: attachmentsData.fileUrl,
+      uploadedBy: {
+        _id: userId,
+        fullName: user?.fullName || "Unknown",
+        email: user?.email || "unknown@example.com",
+      },
+      createdAt: newAttachment.createdAt || new Date(),
+    });
 
     await this.actionService.logAndEmit(userId, taskId, "attachment_added");
 
@@ -84,7 +105,19 @@ class AttachmentService {
         publicId
       );
 
-    this.io.emit("attachmentDeleted", { taskId, publicId });
+    // Fetch user details for event
+    const user = await this.userRepository.findUserById(userId);
+
+    // Emit with correct structure
+    this.io.emit("attachmentDeleted", {
+      attachmentId: attachment._id,
+      taskId: taskId,
+      deletedBy: {
+        _id: userId,
+        fullName: user?.fullName || "Unknown",
+        email: user?.email || "unknown@example.com",
+      },
+    });
 
     await this.actionService.logAndEmit(userId, taskId, "attachment_deleted");
 

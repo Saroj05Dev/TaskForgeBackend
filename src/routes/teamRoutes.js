@@ -50,6 +50,10 @@ const createTeamRouter = (io) => {
     teamController.leaveTeam(req, res)
   );
 
+  teamRouter.delete("/:teamId", isLoggedIn, (req, res) =>
+    teamController.deleteTeam(req, res)
+  );
+
   teamRouter.get("/:teamId", isLoggedIn, (req, res) =>
     teamController.getTeamById(req, res)
   );

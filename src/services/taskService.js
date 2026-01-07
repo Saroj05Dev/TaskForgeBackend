@@ -357,7 +357,18 @@ class TaskService {
 
     const deletedTask = await this.taskRepository.deleteTask(taskId);
 
-    this.io.emit("taskDeleted", deletedTask);
+    // Fetch user details for event
+    const user = await this.userRepository.findUserById(userId);
+
+    // Emit minimal payload for taskDeleted
+    this.io.emit("taskDeleted", {
+      taskId: deletedTask._id,
+      deletedBy: {
+        _id: userId,
+        fullName: user?.fullName || "Unknown",
+        email: user?.email || "unknown@example.com",
+      },
+    });
     await this.actionService.logAndEmit(userId, deletedTask._id, "deleted");
 
     return deletedTask;
@@ -415,6 +426,24 @@ class TaskService {
         assignedUser: userId,
       });
 
+      // Fetch user details
+      const assignerUser = await this.userRepository.findUserById(userId);
+
+      // Emit taskAssigned event
+      this.io.emit("taskAssigned", {
+        _id: updatedTask._id,
+        assignedUser: {
+          _id: userId,
+          fullName: assignerUser?.fullName || "Unknown",
+          email: assignerUser?.email || "unknown@example.com",
+        },
+        assignedBy: {
+          _id: userId,
+          fullName: assignerUser?.fullName || "Unknown",
+          email: assignerUser?.email || "unknown@example.com",
+        },
+      });
+
       this.io.emit("taskUpdated", updatedTask);
       await this.actionService.logAndEmit(userId, updatedTask._id, "assigned", {
         assignedTo: "creator (no team members available)",
@@ -446,7 +475,28 @@ class TaskService {
       assignedUser: targetMember.userId,
     });
 
-    // 10. Emit real-time update
+    // 10. Fetch user details for events
+    const assignerUser = await this.userRepository.findUserById(userId);
+    const assignedUserDetails = await this.userRepository.findUserById(
+      targetMember.userId
+    );
+
+    // Emit taskAssigned event
+    this.io.emit("taskAssigned", {
+      _id: updatedTask._id,
+      assignedUser: {
+        _id: targetMember.userId,
+        fullName: assignedUserDetails?.fullName || "Unknown",
+        email: assignedUserDetails?.email || "unknown@example.com",
+      },
+      assignedBy: {
+        _id: userId,
+        fullName: assignerUser?.fullName || "Unknown",
+        email: assignerUser?.email || "unknown@example.com",
+      },
+    });
+
+    // Emit real-time update
     this.io.emit("taskUpdated", updatedTask);
 
     // 11. Log the action

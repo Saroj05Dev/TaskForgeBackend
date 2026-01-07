@@ -6,12 +6,14 @@ class SharedTaskService {
     teamRepository,
     taskRepository,
     actionService,
+    userRepository,
     io
   ) {
     this.sharedTaskRepository = sharedTaskRepository;
     this.teamRepository = teamRepository;
     this.taskRepository = taskRepository;
     this.actionService = actionService;
+    this.userRepository = userRepository;
     this.io = io;
   }
 
@@ -52,11 +54,17 @@ class SharedTaskService {
     );
 
     // Emit Socket.IO event
+    const sharer = await this.userRepository.findUserById(userId);
+
     this.io.emit("taskShared", {
       taskId,
       teamId,
-      sharedBy: userId,
-      permissions,
+      permission: permissions, // Singular
+      sharedBy: {
+        _id: userId,
+        fullName: sharer?.fullName || "Unknown",
+        email: sharer?.email || "unknown@example.com",
+      },
     });
 
     // Log action
@@ -90,9 +98,16 @@ class SharedTaskService {
     }
 
     // Emit Socket.IO event
+    const unsharer = await this.userRepository.findUserById(userId);
+
     this.io.emit("taskUnshared", {
       taskId,
       teamId,
+      unsharedBy: {
+        _id: userId,
+        fullName: unsharer?.fullName || "Unknown",
+        email: unsharer?.email || "unknown@example.com",
+      },
     });
 
     // Log action

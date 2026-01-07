@@ -5,6 +5,7 @@ import TaskRepository from "../repositories/taskRepository.js";
 import SharedTaskService from "../services/sharedTaskService.js";
 import ActionRepository from "../repositories/actionRepository.js";
 import ActionService from "../services/actionLogService.js";
+import UserRepository from "../repositories/userRepository.js";
 import express from "express";
 import { isLoggedIn } from "../validations/authValidator.js";
 
@@ -15,6 +16,7 @@ const createSharedTaskRouter = (io) => {
   const sharedTaskRepository = new SharedTaskRepository();
   const teamRepository = new TeamRepository();
   const taskRepository = new TaskRepository();
+  const userRepository = new UserRepository();
 
   const actionRepository = new ActionRepository();
   const actionService = new ActionService(actionRepository, io);
@@ -24,6 +26,7 @@ const createSharedTaskRouter = (io) => {
     teamRepository,
     taskRepository,
     actionService,
+    userRepository,
     io
   );
 

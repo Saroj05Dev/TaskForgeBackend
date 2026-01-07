@@ -139,11 +139,10 @@ class UserController {
   }
 
   async logout(req, res) {
-    res.cookie("authToken", "", {
+    res.clearCookie("authToken", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 0,
     });
 
     res.status(200).json({

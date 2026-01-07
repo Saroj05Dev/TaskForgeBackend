@@ -10,6 +10,7 @@ import TaskRepository from "../repositories/taskRepository.js";
 import TeamRepository from "../repositories/teamRepository.js";
 import SharedTaskRepository from "../repositories/sharedTaskRepository.js";
 import TaskAuthorizationHelper from "../utils/authorizationHelper.js";
+import UserRepository from "../repositories/userRepository.js";
 
 const createAttachmentRouter = (io) => {
   const attachmentRouter = express.Router();
@@ -19,6 +20,7 @@ const createAttachmentRouter = (io) => {
   const actionRepository = new ActionRepository();
   const teamRepository = new TeamRepository();
   const sharedTaskRepository = new SharedTaskRepository();
+  const userRepository = new UserRepository();
 
   const actionService = new ActionService(actionRepository, io);
   const authHelper = new TaskAuthorizationHelper(
@@ -30,6 +32,7 @@ const createAttachmentRouter = (io) => {
     taskRepository,
     actionService,
     authHelper,
+    userRepository,
     io
   );
   const attachmentController = new AttachmentController(attachmentService);

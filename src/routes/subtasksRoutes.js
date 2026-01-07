@@ -9,6 +9,7 @@ import TaskRepository from "../repositories/taskRepository.js";
 import TeamRepository from "../repositories/teamRepository.js";
 import SharedTaskRepository from "../repositories/sharedTaskRepository.js";
 import TaskAuthorizationHelper from "../utils/authorizationHelper.js";
+import UserRepository from "../repositories/userRepository.js";
 
 const createSubTaskRouter = (io) => {
   const subtaskRouter = express.Router();
@@ -18,6 +19,7 @@ const createSubTaskRouter = (io) => {
   const actionRepository = new ActionRepository();
   const teamRepository = new TeamRepository();
   const sharedTaskRepository = new SharedTaskRepository();
+  const userRepository = new UserRepository();
 
   const actionService = new ActionService(actionRepository, io);
   const authHelper = new TaskAuthorizationHelper(
@@ -29,6 +31,7 @@ const createSubTaskRouter = (io) => {
     taskRepository,
     actionService,
     authHelper,
+    userRepository,
     io
   );
   const subtaskController = new SubTaskController(subtaskService);

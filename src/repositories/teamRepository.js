@@ -65,5 +65,14 @@ class TeamRepository {
       throw new Error("Error updating team: " + error.message);
     }
   }
+
+  async deleteTeam(teamId) {
+    try {
+      const deletedTeam = await Teams.findByIdAndDelete(teamId);
+      return deletedTeam;
+    } catch (error) {
+      throw new Error("Error deleting team: " + error.message);
+    }
+  }
 }
 export default TeamRepository;

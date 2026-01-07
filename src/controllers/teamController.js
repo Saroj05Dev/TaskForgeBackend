@@ -9,6 +9,7 @@ class TeamController {
     this.getMyTeams = this.getMyTeams.bind(this);
     this.updateTeam = this.updateTeam.bind(this);
     this.leaveTeam = this.leaveTeam.bind(this);
+    this.deleteTeam = this.deleteTeam.bind(this);
   }
 
   async createTeam(req, res) {
@@ -156,6 +157,26 @@ class TeamController {
       res.status(200).json({
         success: true,
         message: "Left team successfully",
+        data: result,
+        error: {},
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message,
+        data: {},
+        error: error.message,
+      });
+    }
+  }
+
+  async deleteTeam(req, res) {
+    try {
+      const { teamId } = req.params;
+      const result = await this.teamService.deleteTeam(teamId, req.user.id);
+      res.status(200).json({
+        success: true,
+        message: "Team deleted successfully",
         data: result,
         error: {},
       });

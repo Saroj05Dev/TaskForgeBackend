@@ -46,10 +46,31 @@ class TeamService {
       user._id
     );
 
+    // Fetch user details for event
+    const inviter = await this.userRepository.findUserById(inviterId);
+    const invitedUser = await this.userRepository.findUserById(user._id);
+
+    // Emit with correct structure
+    this.io.emit("memberInvited", {
+      teamId: teamId,
+      member: {
+        user: {
+          _id: user._id,
+          fullName: invitedUser?.fullName || "Unknown",
+          email: invitedUser?.email || email,
+        },
+        permission: "edit", // Default permission
+      },
+      invitedBy: {
+        _id: inviterId,
+        fullName: inviter?.fullName || "Unknown",
+        email: inviter?.email || "unknown@example.com",
+      },
+    });
+
     await this.actionService.logAndEmit(inviterId, null, "member_invited", {
       invitedEmail: email,
     });
-    this.io.emit("memberInvited", updatedTeam);
 
     return updatedTeam;
   }
@@ -75,11 +96,24 @@ class TeamService {
       userId
     );
 
+    // Fetch user details for event
+    const remover = await this.userRepository.findUserById(requesterId);
+
+    // Emit minimal payload
+    this.io.emit("memberRemoved", {
+      teamId: teamId,
+      userId: userId,
+      removedBy: {
+        _id: requesterId,
+        fullName: remover?.fullName || "Unknown",
+        email: remover?.email || "unknown@example.com",
+      },
+    });
+
     await this.actionService.logAndEmit(requesterId, null, "member_removed", {
       removedUserId: userId,
     });
 
-    this.io.emit("memberRemoved", updatedTeam);
     return updatedTeam;
   }
 
@@ -130,11 +164,25 @@ class TeamService {
       allowedUpdates
     );
 
+    // Fetch user details for event
+    const user = await this.userRepository.findUserById(userId);
+
+    // Add updatedBy to payload
+    const updatedWithUser = {
+      ...updatedTeam.toObject(),
+      updatedBy: {
+        _id: userId,
+        fullName: user?.fullName || "Unknown",
+        email: user?.email || "unknown@example.com",
+      },
+    };
+
+    this.io.emit("teamUpdated", updatedWithUser);
+
     await this.actionService.logAndEmit(userId, null, "team_updated", {
       teamName: updatedTeam.name,
     });
 
-    this.io.emit("teamUpdated", updatedTeam);
     return updatedTeam;
   }
 
@@ -171,6 +219,41 @@ class TeamService {
 
     this.io.emit("memberLeft", { teamId, userId });
     return updatedTeam;
+  }
+
+  async deleteTeam(teamId, userId) {
+    const team = await this.teamRepository.getTeamById(teamId);
+    if (!team) {
+      throw new AppError("Team not found", 404);
+    }
+
+    // Only creator can delete
+    if (team.createdBy.toString() !== userId.toString()) {
+      throw new AppError("Only the team creator can delete this team", 403);
+    }
+
+    // Delete team
+    await this.teamRepository.deleteTeam(teamId);
+
+    // Fetch user details
+    const user = await this.userRepository.findUserById(userId);
+
+    // Emit event
+    this.io.emit("teamDeleted", {
+      teamId: teamId,
+      deletedBy: {
+        _id: userId,
+        fullName: user?.fullName || "Unknown",
+        email: user?.email || "unknown@example.com",
+      },
+    });
+
+    // Log action
+    await this.actionService.logAndEmit(userId, null, "team_deleted", {
+      teamName: team.name,
+    });
+
+    return { message: "Team deleted successfully" };
   }
 }
 
