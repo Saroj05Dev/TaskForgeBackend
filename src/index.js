@@ -51,6 +51,15 @@ const io = new Server(server, {
   },
 });
 
+// Socket.IO connection handlers (for debugging)
+io.on("connection", (socket) => {
+  console.log("✅ Client connected:", socket.id);
+
+  socket.on("disconnect", (reason) => {
+    console.log("❌ Client disconnected:", socket.id, "Reason:", reason);
+  });
+});
+
 // Make io available in controllers/services
 app.set("io", io);
 
