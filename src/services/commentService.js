@@ -37,13 +37,10 @@ class CommentService {
     // Broadcast real-time update
     this.io.emit("commentAdded", newComment);
 
-    // Log the action
-    await this.actionService.logAndEmit(
-      userId,
-      newComment._id,
-      "comment_added",
-      { commentText }
-    );
+    // Log the action (pass taskId not comment ID so task title shows in activity log)
+    await this.actionService.logAndEmit(userId, taskId, "comment_added", {
+      commentText,
+    });
 
     return newComment;
   }
@@ -104,7 +101,7 @@ class CommentService {
       },
     });
 
-    // Log action
+    // Log action (taskId is correct here)
     await this.actionService.logAndEmit(
       userId,
       deletedComment.taskId,

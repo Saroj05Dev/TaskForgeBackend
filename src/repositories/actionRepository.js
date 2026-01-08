@@ -36,7 +36,6 @@ class ActionRepository {
           select: "title createdBy assignedUser",
         })
         .lean();
-
       return actions;
     } catch (error) {
       console.error(error);

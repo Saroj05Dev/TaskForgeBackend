@@ -36,8 +36,8 @@ class SubTaskService {
     // Real-time emit - renamed from subtaskCreated to subtaskAdded
     this.io.emit("subtaskAdded", created);
 
-    // Action log
-    this.actionService.logAndEmit(userId, created._id, "subtask_added", {
+    // Action log (pass taskId not subtask ID so task title shows in activity log)
+    this.actionService.logAndEmit(userId, taskId, "subtask_added", {
       subtaskTitle: subtask.title,
     });
 
@@ -91,6 +91,7 @@ class SubTaskService {
     };
 
     this.io.emit("subtaskUpdated", updatedWithUser);
+    // Action log (parentTask is correct here)
     await this.actionService.logAndEmit(
       userId,
       updated.parentTask,
@@ -157,6 +158,7 @@ class SubTaskService {
         email: user?.email || "unknown@example.com",
       },
     });
+    // Action log (parentTask is correct here)
     await this.actionService.logAndEmit(
       userId,
       deleted.parentTask,
